@@ -136,6 +136,24 @@ class MinibatchStdDevWide(nn.Module):
         y = y.repeat_interleave(g,0).view(b, self.numChannels, 1, 1).repeat(1, 1, h, w)
         #return y
         return torch.cat( (x,y) , 1 )
+class MinibatchStdDevWideSpatial(nn.Module):
+    def __init__(self, groupSize=4, numChannels=32, s=8):
+        self.groupSize=groupSize
+        self.numChannels=numChannels
+        self.s = s
+        super().__init__()
+    def forward(self, x):
+        b,c,h,w = x.size()
+        m,g = b//self.groupSize, self.groupSize
+        y = x.permute(0,2,3,1).view(m, g, h, w, c)
+        y = y - y.mean(dim=1,keepdims=True)
+        y = ((y**2).mean(1) + 1e-7).sqrt()
+
+        y = F.avg_pool2d(y.permute(0,3,1,2), self.s,self.s)
+        y = y.repeat_interleave(g,0).view(b, self.numChannels, -1, y.size(-2), y.size(-1)).mean(2)
+        y = F.interpolate(y, scale_factor=self.s)
+        #return y
+        return torch.cat( (x,y) , 1 )
 
 class Upsample2d(nn.Module):
     #def __init__(self, factor=2, mode='bilinear'):
